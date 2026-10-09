@@ -15,6 +15,7 @@ export async function renderDetail(app, id) {
       <div class="meta">${names.map((n) => `<span class="badge">${esc(n)}</span>`).join('')}</div>
       ${ex.tags.length ? `<div class="tags">${ex.tags.map((t) => `#${esc(t)}`).join(' ')}</div>` : ''}
       ${ex.description ? `<p class="desc">${esc(ex.description)}</p>` : ''}
+      ${ex.ocrText ? `<details class="ocr-text"><summary>Erkannter Text</summary><p class="desc">${esc(ex.ocrText)}</p></details>` : ''}
       <div class="gallery">
         ${atts.map((a) => a.type.startsWith('image/')
           ? `<a href="${objUrl(a.blob)}" target="_blank" rel="noopener"><img src="${objUrl(a.blob)}" alt="${esc(a.name)}"></a>`

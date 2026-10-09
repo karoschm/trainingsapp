@@ -1,5 +1,6 @@
 import { get, getAll, saveExercise, uid } from '../db.js';
 import { resizeImage } from '../image.js';
+import { recognize } from '../ocr.js';
 import { esc, $, parseTags, toast, objUrl } from '../util.js';
 
 export async function renderEdit(app, id) {
@@ -28,6 +29,10 @@ export async function renderEdit(app, id) {
           <input id="file" type="file" accept="image/*,application/pdf" multiple hidden>
         </label>
       </fieldset>
+      <label>Erkannter Text (durchsuchbar)
+        <textarea name="ocrText" id="ocrText" rows="5" placeholder="Mit „Aa“ am Foto die Schrift erkennen lassen. Der Text lässt sich hier korrigieren.">${esc(ex.ocrText || '')}</textarea>
+      </label>
+      <p id="ocrStatus" class="hint" role="status"></p>
       <button class="btn primary" type="submit">Speichern</button>
     </form>`;
 
@@ -35,11 +40,34 @@ export async function renderEdit(app, id) {
     const kept = oldAtts.filter((a) => !removed.includes(a.id));
     $('#atts').innerHTML = [...kept, ...added].map((a) => `
       <div class="thumb">${a.type.startsWith('image/') ? `<img src="${objUrl(a.blob)}" alt="">` : `<span>📄<br>${esc(a.name)}</span>`}
-      <button type="button" class="x" data-id="${a.id}" aria-label="Entfernen">×</button></div>`).join('');
+      <button type="button" class="x" data-id="${a.id}" aria-label="Entfernen">×</button>
+      ${a.type.startsWith('image/') ? `<button type="button" class="ocr" data-id="${a.id}" aria-label="Text erkennen" title="Text erkennen">Aa</button>` : ''}</div>`).join('');
   };
   drawAtts();
 
-  $('#atts').addEventListener('click', (e) => {
+  let busy = false;
+  $('#atts').addEventListener('click', async (e) => {
+    const o = e.target.closest('.ocr');
+    if (o) {
+      if (busy) return;
+      const att = [...oldAtts, ...added].find((a) => a.id === o.dataset.id);
+      const status = $('#ocrStatus');
+      busy = true;
+      try {
+        const text = await recognize(att.blob, (msg, p) => {
+          status.textContent = p ? `${msg} ${Math.round(p * 100)} %` : msg;
+        });
+        const area = $('#ocrText');
+        area.value = [area.value.trim(), text].filter(Boolean).join('\n\n');
+        status.textContent = text ? 'Text erkannt. Bitte kurz prüfen und ggf. korrigieren.' : 'Kein Text erkannt.';
+      } catch (err) {
+        console.error(err);
+        status.textContent = 'Texterkennung fehlgeschlagen. Beim ersten Mal ist eine Internetverbindung nötig.';
+      } finally {
+        busy = false;
+      }
+      return;
+    }
     const b = e.target.closest('.x');
     if (!b) return;
     if (oldAtts.some((a) => a.id === b.dataset.id)) removed.push(b.dataset.id);
@@ -65,7 +93,8 @@ export async function renderEdit(app, id) {
       title: fd.get('title').trim(),
       description: fd.get('description').trim(),
       tags: parseTags(fd.get('tags')),
-      categoryIds: fd.getAll('cat')
+      categoryIds: fd.getAll('cat'),
+      ocrText: fd.get('ocrText').trim()
     }, added, removed);
     toast('Gespeichert');
     location.hash = '#/exercise/' + saved.id;

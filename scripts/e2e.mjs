@@ -75,6 +75,8 @@ await page.waitForSelector('.toast');
 await page.goto('http://localhost:4173/#/');
 await page.waitForSelector('.card');
 await page.click('.card');
+await page.waitForSelector('.detail h1');
+await page.waitForSelector('.detail img');
 assert.equal(await page.locator('.detail img').count(), 1, 'Bild nach Import');
 
 assert.deepEqual(errors, []);
